@@ -53,7 +53,10 @@ Every checkpoint stored in Amber is:
 
 - **Content-addressed** — named by its SHA-256 hash, automatically deduplicated
 - **Compressed** — zstd (level 3 for objects, level 9 for archives)
-- **Kernel-locked** — Linux `FS_IMMUTABLE_FL` set via `ioctl` immediately after write. No user-space process can modify or delete stored objects — not scripts, not AI agents, not root without passphrase-authenticated unlock
+- **Kernel-locked** — platform-native immutability set immediately after write. No user-space process can modify or delete stored objects without passphrase-authenticated unlock
+  - **Linux**: `FS_IMMUTABLE_FL` via `ioctl` (chattr +i)
+  - **macOS**: `UF_IMMUTABLE` via `chflags` (chflags uchg)
+  - **Windows**: read-only attribute + NTFS ACL deny write/delete
 - **Chain-linked** — each version references its parent hash, forming a tamper-evident chain
 
 ### Anomaly Detection
@@ -131,7 +134,7 @@ The pipeline heals itself. Bad checkpoints get rolled back. Corrupted files get 
 |---|---|---|---|---|---|
 | Version tracking | Cloud | DB | Git-based | Git-based | **Local daemon** |
 | Content-addressed | No | No | Yes | No | **SHA-256** |
-| Kernel immutability | No | No | No | No | **FS_IMMUTABLE_FL** |
+| Kernel immutability | No | No | No | No | **Linux + macOS + Windows** |
 | Anomaly detection | No | No | No | No | **Size shrink + write storm** |
 | Score-gated rollback | No | No | No | No | **Automated** |
 | Pre/post hooks | No | Limited | Limited | Git hooks | **Full pipeline integration** |
@@ -330,7 +333,10 @@ The EU AI Act (2026) mandates audit trails and version control for high-risk AI 
 
 ## Requirements
 
-- **Linux** with ext4, xfs, or btrfs (for `FS_IMMUTABLE_FL` kernel flags). Falls back gracefully on unsupported filesystems — versioning works, immutability is skipped.
+- **Linux** — `FS_IMMUTABLE_FL` via ioctl (ext4, xfs, btrfs)
+- **macOS** — `UF_IMMUTABLE` via chflags (APFS, HFS+)
+- **Windows** — read-only attribute + NTFS ACL deny write/delete
+- Falls back gracefully on unsupported filesystems — versioning works, immutability is skipped
 - **Rust 1.70+** for building from source
 - **rsync** (optional) for remote backup
 
