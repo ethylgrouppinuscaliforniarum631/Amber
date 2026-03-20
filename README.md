@@ -340,6 +340,19 @@ The EU AI Act (2026) mandates audit trails and version control for high-risk AI 
 cargo test    # 42 tests — hashing, deltas, storage, manifests, sessions, engine, gating, e2e
 ```
 
+## Contributing
+
+Issues, bug reports, and pull requests are welcome. If you're using Amber in your training pipeline, I'd like to hear about it — open an issue or start a discussion.
+
+If you find a bug, please include:
+- Your filesystem type (`df -T`)
+- Rust version (`rustc --version`)
+- Steps to reproduce
+
+## Support
+
+If Amber is useful to your work, the best way to support the project is to star the repo and share it with others working on ML infrastructure.
+
 ## License
 
 [MIT](LICENSE)
