@@ -18,7 +18,10 @@
   <a href="#how-amber-solves-it">How Amber Solves It</a> &bull;
   <a href="#quick-start">Quick Start</a> &bull;
   <a href="#self-healing-pipeline">Self-Healing Pipeline</a> &bull;
+  <a href="#comparison">Comparison</a> &bull;
   <a href="#architecture">Architecture</a> &bull;
+  <a href="#mcp-server--ai-agent-integration">MCP Server</a> &bull;
+  <a href="#regulatory-compliance">Compliance</a> &bull;
   <a href="ROADMAP.md">Roadmap</a> &bull;
   <a href="LICENSE">MIT License</a>
 </p>
