@@ -347,6 +347,57 @@ The EU AI Act (2026) mandates audit trails and version control for high-risk AI 
 cargo test    # 42 tests — hashing, deltas, storage, manifests, sessions, engine, gating, e2e
 ```
 
+## MCP Server — AI Agent Integration
+
+Amber includes an MCP (Model Context Protocol) server that gives AI assistants direct access to checkpoint protection and context management. The tool built because an AI destroyed model weights — now integrated into AI assistants so they protect checkpoints instead of destroying them.
+
+### Setup
+
+```bash
+pip install "mcp[cli]"
+```
+
+Add to your Claude Code settings (`.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "amber": {
+      "command": "python3",
+      "args": ["/path/to/Amber/amber-mcp/amber_mcp.py"]
+    }
+  }
+}
+```
+
+### File Protection Tools
+
+| Tool | Description |
+|---|---|
+| `amber_status` | Show watched paths and protection status |
+| `amber_log` | View version history before modifying files |
+| `amber_snapshot` | Force a snapshot before making risky changes |
+| `amber_verify` | Verify integrity of stored checkpoints |
+| `amber_restore` | Restore a file to a previous version |
+| `amber_tag` | Tag versions with scores, phase, metadata |
+| `amber_diff` | Compare two versions |
+| `amber_search` | Search content across version history |
+
+### Context Ledger Tools
+
+Immutable, content-addressed snapshots of AI working context — every context state is hashed, chain-linked, and verifiable.
+
+| Tool | Description |
+|---|---|
+| `context_save` | Snapshot current working state (files, decisions, findings, constraints) |
+| `context_restore` | Restore a previous context state with integrity verification |
+| `context_log` | View context version history |
+| `context_diff` | See what changed between context snapshots |
+| `context_branch` | Branch context for exploring different approaches |
+| `context_verify` | Verify integrity of all stored context snapshots |
+
+---
+
 ## Contributing
 
 Issues, bug reports, and pull requests are welcome. If you're using Amber in your training pipeline, I'd like to hear about it — open an issue or start a discussion.
