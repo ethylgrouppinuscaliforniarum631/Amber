@@ -19,6 +19,7 @@
   <a href="#quick-start">Quick Start</a> &bull;
   <a href="#self-healing-pipeline">Self-Healing Pipeline</a> &bull;
   <a href="#architecture">Architecture</a> &bull;
+  <a href="ROADMAP.md">Roadmap</a> &bull;
   <a href="LICENSE">MIT License</a>
 </p>
 
